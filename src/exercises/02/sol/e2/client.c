@@ -1,3 +1,38 @@
+/*
+ * This is part of the second session.
+ * 
+ * Goals:
+ * - solve the producer-consumer problem (bounded buffer)
+ * - implement inter-process synchronization (named semaphores)
+ * - implement both, bounded buffer + named semaphores
+ *
+ * Exercise 2 - Inter-process synchronization
+ * 
+ * Use named semaphores to implement inter-process synchronization.
+ * These are special semaphores uniquely identified by their names.
+ * The underlying shared memory is managed directly by the os.
+ * 
+ * Useful notes:
+ * 
+ * - sem_init is no longer needed, sem_open is the new function to use;
+ * - sem_wait and sem_post remain untouched;
+ * - every process must execute sem_close when its job is finished;
+ * - the semaphore must be destroyed using sem_unlink...
+ * ...so that after it has been unlinked, the OS can safely remove it.
+ * 
+ * In this exercise a scheduler with inter-process synchronization is simulated.
+ * 
+ * A client-server architecture is used:
+ * 
+ * The server creates a semaphore in order to give access to critical sections
+ * to a maximum of NUM_RESOURCES threads at a time;
+ * 
+ * The client spawns THREAD_BURST threads at a time that 
+ * synchronize themselves through the semaphore created by the server.
+ * 
+ * Obviously, the server must be launched before the client.
+ */
+
 #include "util.h"
 
 #include <errno.h>
@@ -9,10 +44,12 @@
 #include <time.h>
 #include <unistd.h>
 
+/* global variables, useful for testing different scenarios */
 #define MAX_SLEEP           6
 #define THREAD_BURST        5
 #define SEMAPHORE_NAME      "/simple_scheduler"
 
+// struct used to specify arguments for a thread
 typedef struct thread_args_s {
     int     ID;
 } thread_args_t;

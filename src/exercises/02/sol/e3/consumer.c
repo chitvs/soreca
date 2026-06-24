@@ -1,3 +1,39 @@
+/*
+ * This is part of the second session.
+ * 
+ * Goals:
+ * - solve the producer-consumer problem (bounded buffer)
+ * - implement inter-process synchronization (named semaphores)
+ * - implement both, bounded buffer + named semaphores
+ *
+ * Exercise 3 - Bounded buffer + named semaphores
+ * 
+ * Use named semaphores and a shared file to implement the 
+ * producer-consumer problem across multiple separate processes.
+ * 
+ * Useful notes:
+ * 
+ * - fork() is used to spawn child processes;
+ * - since processes do not share memory space, the bounded buffer
+ * is simulated using a shared file on disk;
+ * - the producer acts as the initiator, so it must create the 
+ * semaphores (using O_CREAT | O_EXCL) and initialize the file.
+ * - the consumer expects the shared file and the semaphores to 
+ * already exist, so it uses sem_open with flag 0;
+ * - since it is the last step of the pipeline, the main consumer 
+ * process is responsible for unlinking (destroying) the semaphores.
+ *
+ * In this exercise, the producer-consumer architecture is split:
+ * 
+ * The main producer process creates 3 named semaphores (filled, empty, cs)
+ * and spawns NUM_PRODUCERS child processes that act as concurrent writers.
+ * 
+ * The main consumer process connects to the 3 named semaphores
+ * and spawns NUM_CONSUMERS child processes that act as concurrent readers.
+ * 
+ * Obviously, the producer must be launched before the consumer. 
+ */
+
 #include "common.h"
 
 #include <semaphore.h>

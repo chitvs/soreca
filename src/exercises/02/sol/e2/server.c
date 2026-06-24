@@ -1,3 +1,38 @@
+/*
+ * This is part of the second session.
+ * 
+ * Goals:
+ * - solve the producer-consumer problem (bounded buffer)
+ * - implement inter-process synchronization (named semaphores)
+ * - implement both, bounded buffer + named semaphores
+ *
+ * Exercise 2 - Inter-process synchronization
+ * 
+ * Use named semaphores to implement inter-process synchronization.
+ * These are special semaphores uniquely identified by their names.
+ * The underlying shared memory is managed directly by the os.
+ * 
+ * Useful notes:
+ * 
+ * - sem_init is no longer needed, sem_open is the new function to use;
+ * - sem_wait and sem_post remain untouched;
+ * - every process must execute sem_close when its job is finished;
+ * - the semaphore must be destroyed using sem_unlink...
+ * ...so that after it has been unlinked, the OS can safely remove it.
+ * 
+ * In this exercise a scheduler with inter-process synchronization is simulated.
+ * 
+ * A client-server architecture is used:
+ * 
+ * The server creates a semaphore in order to give access to critical sections
+ * to a maximum of NUM_RESOURCES threads at a time;
+ * 
+ * The client spawns THREAD_BURST threads at a time that 
+ * synchronize themselves through the semaphore created by the server.
+ * 
+ * Obviously, the server must be launched before the client.
+ */
+
 #include "util.h"
 
 #include <errno.h>
@@ -9,6 +44,7 @@
 #include <time.h>
 #include <unistd.h>
 
+/* global variables, useful for testing different scenarios */
 #define LOG_INTERVAL        1
 #define NUM_RESOURCES       3
 #define SEMAPHORE_NAME      "/simple_scheduler"
@@ -26,7 +62,8 @@ void cleanup() {
      * in the system after the server terminates!
      * **/
 
-    if (sem_close(named_semaphore)) handle_error("[server] sem_unlink error, sem named_semaphore");
+    /* sem_close and then sem_unlink (with proper error handling) */
+    if (sem_close(named_semaphore)) handle_error("[server] sem_close error, sem named_semaphore");
 
     char errormsg[256] = "[server] sem_unlink error, sem ";
     strcat(errormsg, SEMAPHORE_NAME);
