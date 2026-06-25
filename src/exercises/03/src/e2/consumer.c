@@ -26,19 +26,22 @@ int fd_shm;
 //definizione semafori named
 sem_t *sem_empty, *sem_filled, *sem_cs;
 
+
 void openMemory() {
-    // request shared memory to the kernel and map the shared memory in the shared_mem_ptr variable
-    if ((fd_shm = shm_open (SH_MEM_NAME, O_RDWR, 0660)) == -1) handle_error("shm_open error");
-    if ((myshm_ptr = mmap (NULL, sizeof(struct shared_memory), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) handle_error ("mmap error");
+    /** COMPLETE THE FOLLOWING CODE BLOCK
+     *
+     * Request shared memory to the kernel and map the shared memory in the shared_mem_ptr variable.
+     **/
 }
 
 void closeMemory() {
-    // unmap the shared memory and close its descriptor
-    int ret;
-	ret = munmap(myshm_ptr, sizeof(struct shared_memory));
-	if (ret == -1) handle_error("munmap error");
-    close(fd_shm);
+    /** COMPLETE THE FOLLOWING CODE BLOCK
+     *
+     * unmap the shared memory and close its descriptor
+     **/
 }
+
+
 
 void openSemaphores() {
     sem_filled = sem_open(SEMNAME_FILLED, 0);
@@ -88,11 +91,12 @@ void consume(int id, int numOps) {
 
         ret = sem_wait(sem_cs);
         if (ret) handle_error("sem_wait cs");
-        
-        // read value from buffer inside the shared memory and update the consumer position
-        int value = myshm_ptr->buf[myshm_ptr->read_index];
-        myshm_ptr->read_index++;
-        if (myshm_ptr->read_index == BUFFER_SIZE) myshm_ptr->read_index = 0;
+
+        /**
+         * Complete the following code:
+         * read value from buffer inside the shared memory and update the consumer position
+         */
+
 
         ret = sem_post(sem_cs);
         if (ret) handle_error("sem_post cs");

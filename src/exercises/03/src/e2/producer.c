@@ -27,28 +27,24 @@ int fd_shm;
 sem_t *sem_empty, *sem_filled, *sem_cs;
 
 void initMemory() {
-    
-    // request the kernel to creare a shared memory, set its size to the size of struct shared_memory, and map the shared memory in the shared_mem_ptr variable
-    if ((fd_shm = shm_open (SH_MEM_NAME, O_RDWR | O_CREAT | O_EXCL, 0660)) == -1) handle_error("shm_open error");
-    if (ftruncate (fd_shm, sizeof (struct shared_memory)) == -1) handle_error ("ftruncate error");
-    if ((myshm_ptr = mmap (NULL, sizeof(struct shared_memory), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) handle_error ("mmap error");
+    /** COMPLETE THE FOLLOWING CODE BLOCK
+     *
+     * Request the kernel to creare a shared memory, set its size to the size of
+     * struct shared_memory, and map the shared memory in the shared_mem_ptr variable.
+     * Initialize the shared memory to 0.
+     **/
 
-    // initialize the shared memory to 0
-    memset(myshm_ptr, 0, sizeof(struct shared_memory));
 }
 
 void closeMemory() {
+    /** COMPLETE THE FOLLOWING CODE BLOCK
+     *
+     * unmap the shared memory, unlink the shared memory and close its descriptor
+     **/
 
-    // unmap the shared memory, unlink the shared memory and close its descriptor
-    int ret;
-	ret = munmap(myshm_ptr, sizeof(struct shared_memory));
-	if (ret == -1) handle_error("munmap error");
-
-    close(fd_shm);
-
-	ret = shm_unlink(SH_MEM_NAME);
-	if (ret == -1) handle_error("shm_unlink error");
 }
+
+
 
 void initSemaphores() {
     // delete state semaphores from a previous crash (if any)
@@ -104,10 +100,11 @@ void produce(int id, int numOps) {
         ret = sem_wait(sem_cs);
         if (ret) handle_error("sem_wait cs");
 
-        // write value in the buffer inside the shared memory and update the producer position
-        myshm_ptr->buf[myshm_ptr->write_index] = value;
-        myshm_ptr->write_index++;
-        if (myshm_ptr->write_index == BUFFER_SIZE) myshm_ptr->write_index = 0;
+        /**
+         * Complete the following code:
+         * write value in the buffer inside the shared memory and update the producer position
+         */
+
 
         ret = sem_post(sem_cs);
         if (ret) handle_error("sem_post cs");
@@ -150,3 +147,4 @@ int main(int argc, char** argv) {
 
     exit(EXIT_SUCCESS);
 }
+
