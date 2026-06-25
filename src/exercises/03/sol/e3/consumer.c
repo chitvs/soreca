@@ -46,9 +46,6 @@
 
 /* 
  * Shared memory structure
- *
- * The state of the buffer (data and indexes) is encapsulated
- * in a single struct mapped into shared memory.
  */
 struct shared_memory {
     int buf [BUFFER_SIZE];
@@ -64,15 +61,10 @@ int fd_shm; /* file descriptor for the shared memory object */
 
 /* initialization logic */
 void openMemory() {
-    /*
-     * Connect to existing shared memory
-     *
-     * We do not use O_CREAT here. We expect the producer to have already 
-     * created the memory object. We just open it with read/write permissions.
-     */
+    /* connect to existing shared memory */
     if ((fd_shm = shm_open (SH_MEM_NAME, O_RDWR, 0660)) == -1) handle_error("shm_open error");
 
-    /* Map the existing memory object into the consumer's virtual address space */
+    /* map the existing memory object into the consumer's virtual address space */
     if ((myshm_ptr = mmap (NULL, sizeof(struct shared_memory), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) handle_error ("mmap error");
 }
 
@@ -101,7 +93,7 @@ void consume(int id, int numOps) {
          * Busy waiting
          *
          * Instead of sleeping (sem_wait), the CPU continuously evaluates this condition.
-         * We check if the buffer is empty.
+         * Check if the buffer is empty.
          * If read_index == write_index, there is nothing to read.
          */
         while (myshm_ptr->read_index == myshm_ptr->write_index);
@@ -118,7 +110,7 @@ void consume(int id, int numOps) {
     	next_pos = (myshm_ptr->read_index + 1) % BUFFER_SIZE;
 
         /* 
-         * we update read_index only after the data is read.
+         * update read_index only after the data is read.
          * This acts as a signal to the producer that a new slot is free.
          */
         myshm_ptr->read_index = next_pos;

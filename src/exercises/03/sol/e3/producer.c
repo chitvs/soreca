@@ -46,9 +46,6 @@
 
 /* 
  * Shared memory structure
- *
- * The state of the buffer (data and indexes) is encapsulated
- * in a single struct mapped into shared memory.
  */
 struct shared_memory {
     int buf[BUFFER_SIZE];
@@ -62,13 +59,10 @@ struct shared_memory {
 struct shared_memory *myshm_ptr; /* pointer to access the struct in shared memory */
 int fd_shm; /* file descriptor for the shared memory object */
 
-/* Initialization logic, executed by the main producer process */
+/* initialization logic */
 void initMemory() {
     
-    /* 
-     * Preventive unlink (clear any stale memory from previous crashes 
-     * before attempting to create a new one).
-     */
+    /* preventive unlink*/
     shm_unlink(SH_MEM_NAME);
 
     /* Request the kernel to create a shared memory object */
@@ -121,7 +115,7 @@ static inline int performRandomTransaction() {
     }
 }
 
-/* producer logic, executed by child processes */
+/* producer logic */
 void produce(int id, int numOps) {
     int localSum = 0, next_pos = 0;
     while (numOps > 0) {
@@ -132,7 +126,7 @@ void produce(int id, int numOps) {
          * Busy wainting
          *
          * Instead of sleeping (sem_wait), the CPU continuously evaluates this condition.
-         * We check if writing would make write_index "lap" (catch up to) read_index.
+         * Check if writing would make write_index "lap" (catch up to) read_index.
          * If (write_index + 1) % SIZE == read_index, the buffer is considered full.
          */
         while ((myshm_ptr->write_index + 1) % BUFFER_SIZE == myshm_ptr->read_index);
@@ -149,7 +143,7 @@ void produce(int id, int numOps) {
         next_pos = (myshm_ptr->write_index + 1) % BUFFER_SIZE;
         
         /* 
-         * we update write_index only after the data is written.
+         * Update write_index only after the data is written.
          * This acts as a signal to the consumer that new data is ready.
          */
         myshm_ptr->write_index = next_pos;
@@ -174,7 +168,7 @@ int main(int argc, char** argv) {
 
     printf("Producer has terminated. Exiting...\n");
     
-    /* Wait for a moment to ensure the consumer finishes reading before we nuke the memory */
+    /* Wait for a moment to ensure the consumer finishes reading before nuking the memory */
     sleep(1); 
     closeMemory();
 

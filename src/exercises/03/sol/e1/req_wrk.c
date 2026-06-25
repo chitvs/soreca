@@ -8,8 +8,8 @@
  *
  * Exercise 1 - Multiprocess application with shared memory
  * 
- * The goal is to develop an application in two components (requester
- * and worker) that share data using POSIX shared memory.
+ * The goal is to develop an application in two components (requesterand worker) 
+ * that share data using POSIX shared memory.
  * 
  * But how is the execution coordinated?
  * 
@@ -59,7 +59,8 @@ int request() {
      * MAP_SHARED ensures that any modification to 'data' is instantly visible
      * to any other process mapping this same 'fd'.
      */
-    if ((data = (int *)mmap(0, SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED) handle_error("mmap error");
+    if ((data = (int *)mmap(0, SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
+        handle_error("mmap error");
 
     printf("request: mapped address: %p\n", data);
 
@@ -113,7 +114,8 @@ int work() {
      * The printed address might be different from the requester's one,
      * but they point to the exact same physical RAM block.
      */
-    if ((data = (int *)mmap(0, SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED) handle_error("mmap error");
+    if ((data = (int *)mmap(0, SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED) 
+        handle_error("mmap error");
     
     printf("worker: mapped address: %p\n", data);
     

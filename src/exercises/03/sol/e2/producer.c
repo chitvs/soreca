@@ -58,20 +58,18 @@ struct shared_memory {
 
 /* 
  * Global resources
- * 
- * Inherited by child processes after the fork().
  */
 struct shared_memory *myshm_ptr; /* pointer to access the struct in shared memory */
 int fd_shm; /* file descriptor for the shared memory object */
 sem_t *sem_empty, *sem_filled, *sem_cs; /* named semaphores for synchronization */
 
-/* Initialization logic, executed by the main producer process */
+/* initialization logic */
 void initMemory() {
     /*
      * Create and size the shared memory
      *
-     * We request the kernel to create a shared memory object with O_CREAT and O_EXCL.
-     * Then, we set its exact physical size to match our struct using ftruncate().
+     * Request the kernel to create a shared memory object with O_CREAT and O_EXCL.
+     * Then, set its exact physical size to match our struct using ftruncate().
      */
     if ((fd_shm = shm_open (SH_MEM_NAME, O_RDWR | O_CREAT | O_EXCL, 0660)) == -1) 
         handle_error("shm_open error");
@@ -79,7 +77,7 @@ void initMemory() {
     if (ftruncate (fd_shm, sizeof (struct shared_memory)) == -1) 
         handle_error ("ftruncate error");
 
-    /* Map the memory object into the virtual address space */
+    /* map the memory object into the virtual address space */
     if ((myshm_ptr = mmap (NULL, sizeof(struct shared_memory), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) 
         handle_error ("mmap error");
 
@@ -113,7 +111,7 @@ void closeMemory() {
 /*
  * Create named semaphores
  *
- * We delete any stale semaphores first, then create them using O_CREAT and O_EXCL.
+ * delete any stale semaphores first, then create them using O_CREAT and O_EXCL.
  * - sem_filled (init 0): tracks items ready to be consumed.
  * - sem_empty (init BUFFER_SIZE): tracks available slots.
  * - sem_cs (init 1): acts as a mutex specifically for concurrent producers.
@@ -166,7 +164,7 @@ static inline int performRandomTransaction() {
     }
 }
 
-/* producer logic, executed by child processes */
+/* producer logic */
 void produce(int id, int numOps) {
     int localSum = 0;
     while (numOps > 0) {

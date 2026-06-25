@@ -58,20 +58,18 @@ struct shared_memory {
 
 /* 
  * Global resources
- * 
- * Inherited by child processes after the fork().
  */
 struct shared_memory *myshm_ptr; /* pointer to access the struct in shared memory */
 int fd_shm; /* file descriptor for the shared memory object */
 sem_t *sem_empty, *sem_filled, *sem_cs; /* named semaphores for synchronization */
 
-/* initialization logic, executed by the main consumer process */
+/* initialization logic */
 void openMemory() {
     /*
      * Connect to existing shared memory
      *
-     * We do not use O_CREAT here. We expect the producer to have already 
-     * created the memory object. We just open it with read/write permissions.
+     * No O_CREAT here. The producer is expected to have already 
+     * created the memory object. So just open it with read/write permissions.
      */
     if ((fd_shm = shm_open (SH_MEM_NAME, O_RDWR, 0660)) == -1) 
         handle_error("shm_open error");
@@ -110,7 +108,8 @@ void openSemaphores() {
     /*
      * Create consumer mutex
      *
-     * here we DO use O_CREAT! 
+     * here comes O_CREAT!
+     *  
      * The consumer module needs its own mutex to synchronize concurrent consumers. 
      * This is distinct from the producer's mutex.
      */
@@ -149,7 +148,7 @@ void closeAndDestroySemaphores() {
 
 }
 
-/* consumer logic, executed by the child processes */
+/* consumer logic */
 void consume(int id, int numOps) {
     int localSum = 0;
 
