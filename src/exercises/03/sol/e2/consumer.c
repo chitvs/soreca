@@ -65,6 +65,7 @@ struct shared_memory *myshm_ptr; /* pointer to access the struct in shared memor
 int fd_shm; /* file descriptor for the shared memory object */
 sem_t *sem_empty, *sem_filled, *sem_cs; /* named semaphores for synchronization */
 
+/* initialization logic, executed by the main consumer process */
 void openMemory() {
     /*
      * Connect to existing shared memory
@@ -81,7 +82,7 @@ void openMemory() {
 }
 
 /*
- * Local Cleanup
+ * Local cleanup
  *
  * the consumer unmaps and closes its local descriptor.
  */
@@ -176,7 +177,7 @@ void consume(int id, int numOps) {
         if (myshm_ptr->read_index == BUFFER_SIZE) myshm_ptr->read_index = 0;
 
         /*
-         * Exit Section
+         * Exit section
          *
          * Release the consumer mutex (sem_cs).
          * Signal the producer(s) that a new slot is empty and available (sem_empty).

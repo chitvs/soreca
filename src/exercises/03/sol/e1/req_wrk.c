@@ -74,17 +74,16 @@ int request() {
     /*
      * Synchronization
      * 
-     * Since the worker is waiting on 'sem_worker', we wake it up
+     * Since the worker is waiting on 'sem_worker', the requester wakes it up
      * by posting its semaphore. Hey, wake up, data is ready!!!
      * 
-     * Immediately after, we wait on 'sem_request' until the worker
-     * finishes the elaboration and wakes us up.
-     * 
+     * Immediately after, the requester waits on 'sem_request' until the worker
+     * finishes the elaboration and wakes it up.
      */
     if (sem_post(sem_worker) != 0) handle_error("sem_post error, sem: sem_worker");
     if (sem_wait(sem_request) != 0) handle_error("sem_wait error, sem: sem_request");
 
-    /* at this point, the worker has finished, posted sem_request, and we are awake again */
+    /* at this point, the worker has finished, posted sem_request, and the requester is awake again */
     printf("request: acquire updated data\n");
     printf("request: updated data:\n");
 
@@ -95,7 +94,7 @@ int request() {
     /*
      * Cleanup
      * 
-     * let's release the resources.
+     * release the resources.
      * munmap() detaches the shared memory from this specific process's virtual memory.
      * It closes our window to the shared RAM, but it does not destroy the shared memory
      * object in the OS.
@@ -107,7 +106,6 @@ int request() {
 
 /* worker logic, executed by the child process */
 int work() {
-    
     /*
      * Memory mapping
      * 
@@ -171,7 +169,7 @@ int main(int argc, char **argv) {
     /*
      * Create named semaphores
      *
-     * We create the semaphores with O_CREAT and O_EXCL.
+     * The semaphores are created with O_CREAT and O_EXCL.
      * They are explicitly initialized to 0 because they are used as 
      * synchronization signals, not as mutexes.
      */
@@ -185,7 +183,7 @@ int main(int argc, char **argv) {
      * Create shared memory object
      *
      * shm_open() creates a POSIX shared memory object in the OS and returns
-     * a file descriptor. O_RDWR gives us read and write permissions.
+     * a file descriptor. O_RDWR provides read and write permissions.
      */
     fd = shm_open(SHM_NAME, O_CREAT | O_EXCL | O_RDWR, 0600);
     if (fd < 0) handle_error("shm_open error");
