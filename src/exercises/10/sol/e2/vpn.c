@@ -1,3 +1,29 @@
+/*
+ * This is part of the tenth session.
+ *
+ * Goals:
+ * - Implement a Simple DNS Server over UDP.
+ * - Implement a Simple VPN Server over UDP.
+ * - Understand the basic structure of DNS protocol (RFC 1035).
+ * - Handle binary data decoding/encoding over network sockets.
+ * - Understand how Virtual Private Networks establish tunnels.
+ * - Learn how to interact with Linux TUN/TAP network interfaces.
+ * - Handle routing tables and masquerading via iptables.
+ * - Read/Write raw IP packets to a TUN device and forward them via UDP.
+ *
+ * Exercise 2 - Simple VPN Server
+ *
+ * This code can be compiled both as a VPN Server and a VPN Client using 
+ * preprocessor directives (-DAS_CLIENT).
+ * The application creates a virtual network interface (tun0 or tun1),
+ * configures the routing table to hijack traffic, and listens on a UDP port.
+ * It uses select() to multiplex I/O. When an IP packet arrives on the TUN 
+ * interface, it is read, "encrypted", and sent via UDP to the peer. When a 
+ * UDP datagram arrives from the peer, it is "decrypted", and written back 
+ * into the local TUN interface to be routed by the OS kernel.
+ */
+
+#define _GNU_SOURCE /* just to disable errors on intellisense */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,15 +40,14 @@
 #include <linux/if_tun.h>
 
 /*
- * The following lines serve as configurations
- * Le direttive sono passate al precompilatore tramite Makefile, nel caso di client
- * CLNTFLAGS = -DAS_CLIENT=YES -DSERVER_HOST="\"10.8.0.1\""
- * ATTENZIONE: è necessario fare attenzione ad inserire il corretto escaping delle virgolette doppie (\")
- * per evitare che vengano interpretate come parte della sintassi del Makefile.
+ * Configuration directives
+ * These are passed to the precompiler via Makefile.
+ * E.g., for the client: CLNTFLAGS = -DAS_CLIENT=YES -DSERVER_HOST="\"10.8.0.1\""
+ * WARNING: ensure proper escaping of double quotes (\") in the Makefile.
  */
 
-// #define AS_CLIENT YES
-// #define SERVER_HOST "10.8.0.1"
+/* #define AS_CLIENT YES */
+/* #define SERVER_HOST "10.8.0.1" */
 
 #define PORT 54345
 #define MTU 1400
@@ -33,7 +58,10 @@ static int max(int a, int b) {
 }
 
 /*
- * Create VPN interface /dev/tun1 and return a fd
+ * TUN allocator
+ *
+ * Creates the VPN interface (/dev/tun0 or /dev/tun1), configures it,
+ * and returns its file descriptor. Uses ioctl with TUNSETIFF.
  */
 int tun_alloc() {
     struct ifreq ifr;
@@ -63,7 +91,7 @@ int tun_alloc() {
 }
 
 /*
- * Execute commands
+ * Execute commands wrapper
  */
 static void run(char *cmd) {
     printf("Execute `%s`\n", cmd);
@@ -74,7 +102,9 @@ static void run(char *cmd) {
 }
 
 /*
- * Configure IP address and MTU of VPN interface /dev/tun1
+ * Network configuration
+ *
+ * Configures the IP address and MTU of the VPN TUN interface.
  */
 void ifconfig() {
     char cmd[1024];
@@ -88,7 +118,10 @@ void ifconfig() {
 }
 
 /*
- * Setup route table via `iptables` & `ip route`
+ * Setup route table
+ *
+ * Configures the OS routing table using `iptables` and `ip route`
+ * to forward the desired traffic into the TUN interface.
  */
 void setup_route_table() {
 
@@ -112,6 +145,8 @@ void setup_route_table() {
 
 /*
  * Cleanup route table
+ *
+ * Restores the OS routing table to its previous state upon exit.
  */
 void cleanup_route_table() {
 #ifdef AS_CLIENT
@@ -131,7 +166,10 @@ void cleanup_route_table() {
 }
 
 /*
- * Bind UDP port
+ * UDP bind
+ *
+ * Opens a UDP socket for establishing the VPN tunnel.
+ * If running as a server, it binds the socket to the port.
  */
 int udp_bind(struct sockaddr *addr, socklen_t *addrlen) {
     struct addrinfo hints;
@@ -181,6 +219,7 @@ int udp_bind(struct sockaddr *addr, socklen_t *addrlen) {
 
     freeaddrinfo(result);
 
+    /* Set socket to non-blocking mode */
     flags = fcntl(sock, F_GETFL, 0);
     if (flags != -1) {
         if (-1 != fcntl(sock, F_SETFL, flags | O_NONBLOCK))
@@ -193,7 +232,9 @@ int udp_bind(struct sockaddr *addr, socklen_t *addrlen) {
 }
 
 /*
- * Catch Ctrl-C and `kill`s, make sure route table gets cleaned before this process exit
+ * Catch Ctrl-C and kill signals.
+ *
+ * Ensures the route table gets cleaned before this process exits.
  */
 void cleanup(int signo) {
     printf("Goodbye, cruel world....\n");
@@ -215,9 +256,10 @@ void cleanup_when_sig_exit() {
 }
 
 /*
- * For a real-world VPN, traffic inside UDP tunnel is encrypted
- * A comprehensive encryption is not easy and not the point for this demo
- * I'll just leave the stubs here
+ * Encryption stubs
+ *
+ * For a real-world VPN, traffic inside the UDP tunnel is encrypted.
+ * A comprehensive encryption is not easy and not the point for this educational demo.
  */
 void encrypt(char *plantext, char *ciphertext, int len) {
     memcpy(ciphertext, plantext, len);
@@ -242,8 +284,8 @@ int main(int argc, char **argv) {
     if ((udp_fd = udp_bind((struct sockaddr *)&client_addr, &client_addrlen)) < 0) return 1;
 
     /*
-     * tun_buf - memory buffer read from/write to tun dev - is always plain
-     * udp_buf - memory buffer read from/write to udp fd - is always encrypted
+     * tun_buf: memory buffer read from/write to tun dev (always plain IP packets).
+     * udp_buf: memory buffer read from/write to udp fd (always encrypted datagrams).
      */
     char tun_buf[MTU], udp_buf[MTU];
     bzero(tun_buf, MTU);
@@ -262,6 +304,11 @@ int main(int argc, char **argv) {
         }
 
         int r;
+        
+        /*
+         * Read plain IP packets from the TUN device, encrypt them, 
+         * and send them into the UDP tunnel.
+         */
         if (FD_ISSET(tun_fd, &readset)) {
             r = read(tun_fd, tun_buf, MTU);
             if (r < 0) {
@@ -279,6 +326,10 @@ int main(int argc, char **argv) {
             }
         }
 
+        /*
+         * Read encrypted datagrams from the UDP tunnel, decrypt them, 
+         * and write the raw IP packets back into the TUN device.
+         */
         if (FD_ISSET(udp_fd, &readset)) {
             r = recvfrom(udp_fd, udp_buf, MTU, 0, (struct sockaddr *)&client_addr, &client_addrlen);
             if (r < 0) {
@@ -288,6 +339,7 @@ int main(int argc, char **argv) {
 
             decrypt(udp_buf, tun_buf, r);
             printf("Writing to tun %d bytes ...\n", r);
+            
             r = write(tun_fd, tun_buf, r);
             if (r < 0) {
                 perror("write tun_fd error");

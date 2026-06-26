@@ -1,3 +1,29 @@
+/*
+ * This is part of the tenth session.
+ *
+ * Goals:
+ * - Implement a Simple DNS Server over UDP.
+ * - Implement a Simple VPN Server over UDP.
+ * - Understand the basic structure of DNS protocol (RFC 1035).
+ * - Handle binary data decoding/encoding over network sockets.
+ * - Understand how Virtual Private Networks establish tunnels.
+ * - Learn how to interact with Linux TUN/TAP network interfaces.
+ * - Handle routing tables and masquerading via iptables.
+ * - Read/Write raw IP packets to a TUN device and forward them via UDP.
+ *
+ * Exercise 1 - Simple DNS Server
+ *
+ * This is a basic DNS Server for educational use. It listens on a UDP port
+ * (9000) and waits for DNS query datagrams. When a query is received via 
+ * recvfrom(), the server decodes the binary packet into a Message structure. 
+ * It then resolves the query against hardcoded Resource Records (A, AAAA, TXT), 
+ * encodes the answer back into a binary packet, and sends it back to the client 
+ * using sendto().
+ *
+ * To test, start the program and issue a DNS request:
+ * dig @127.0.0.1 -p 9000 foo.bar.com
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
@@ -7,7 +33,6 @@
 #include <string.h>
 #include <malloc.h>
 #include <errno.h>
-#include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -15,20 +40,8 @@
 #define MIN(x, y) ((x) <= (y) ? (x) : (y))
 
 /*
- * This software is licensed under the CC0.
- *
- * This is a _basic_ DNS Server for educational use.
- * It does not prevent invalid packets from crashing
- * the server.
- *
- * To test start the program and issue a DNS request:
- *  dig @127.0.0.1 -p 9000 foo.bar.com
- */
-
-/*
  * Masks and constants.
  */
-
 static const uint32_t QR_MASK = 0x8000;
 static const uint32_t OPCODE_MASK = 0x7800;
 static const uint32_t AA_MASK = 0x0400;
@@ -95,7 +108,7 @@ struct Question {
     char *qName;
     uint16_t qType;
     uint16_t qClass;
-    struct Question *next; // for linked list
+    struct Question *next; /* for linked list */
 };
 
 /* Data part of a Resource Record */
@@ -120,7 +133,7 @@ struct ResourceRecord {
     uint32_t ttl;
     uint16_t rd_length;
     union ResourceData rd_data;
-    struct ResourceRecord *next; // for linked list
+    struct ResourceRecord *next; /* for linked list */
 };
 
 struct Message {
@@ -134,6 +147,7 @@ struct Message {
     uint16_t rd;     /* Recursion Desired */
     uint16_t ra;     /* Recursion Available */
     uint16_t rcode;  /* Response Code */
+    
     uint16_t qdCount; /* Question Count */
     uint16_t anCount; /* Answer Record Count */
     uint16_t nsCount; /* Authority Record Count */
@@ -333,7 +347,7 @@ void put32bits(uint8_t **buffer, uint32_t value) {
  * Deconding/Encoding functions.
  */
 
-// 3foo3bar3com0 => foo.bar.com (No full validation is done!)
+/* 3foo3bar3com0 => foo.bar.com (No full validation is done!) */
 char *decode_domain_name(const uint8_t **buf, size_t buflen) {
     char domain[256];
     for (int i = 1; i < MIN(256, buflen); i += 1) {
@@ -354,7 +368,7 @@ char *decode_domain_name(const uint8_t **buf, size_t buflen) {
     return NULL;
 }
 
-// foo.bar.com => 3foo3bar3com0
+/* foo.bar.com => 3foo3bar3com0 */
 void encode_domain_name(uint8_t **buffer, const char *domain) {
     uint8_t *buf = *buffer;
     const char *beg = domain;
@@ -401,6 +415,7 @@ bool decode_header(struct Message *msg, const uint8_t **buf, size_t buflen) {
     msg->rd = (fields & RD_MASK) >> 8;
     msg->ra = (fields & RA_MASK) >> 7;
     msg->rcode = (fields & RCODE_MASK) >> 0;
+    
     msg->qdCount = get16bits(buf);
     msg->anCount = get16bits(buf);
     msg->nsCount = get16bits(buf);
@@ -416,6 +431,7 @@ void encode_header(struct Message *msg, uint8_t **buffer) {
     fields |= (msg->qr << 15) & QR_MASK;
     fields |= (msg->rcode << 0) & RCODE_MASK;
     put16bits(buffer, fields);
+
     put16bits(buffer, msg->qdCount);
     put16bits(buffer, msg->anCount);
     put16bits(buffer, msg->nsCount);
@@ -441,7 +457,7 @@ bool decode_msg(struct Message *msg, const uint8_t *buf, size_t buflen) {
         return false;
     }
 
-    // parse questions
+    /* parse questions */
     uint32_t qcount = msg->qdCount;
     for (int i = 0; i < qcount; i += 1) {
         struct Question *q = calloc(1, sizeof(struct Question));
@@ -464,35 +480,35 @@ bool decode_msg(struct Message *msg, const uint8_t *buf, size_t buflen) {
         q->qType = get16bits(&cur);
         q->qClass = get16bits(&cur);
 
-        // prepend question to questions list
+        /* prepend question to questions list */
         q->next = msg->questions;
         msg->questions = q;
     }
 
-    // We do not expect any resource records to parse here.
+    /* We do not expect any resource records to parse here. */
 
     return true;
 }
 
-// For every question in the message add a appropiate resource record
-// in either section 'answers', 'authorities' or 'additionals'.
+/* For every question in the message add an appropriate resource record
+ * in either section 'answers', 'authorities' or 'additionals'. */
 void resolve_query(struct Message *msg) {
     struct ResourceRecord *beg;
     struct ResourceRecord *rr;
     struct Question *q;
 
-    // leave most values intact for response
-    msg->qr = 1; // this is a response
-    msg->aa = 1; // this server is authoritative
-    msg->ra = 0; // no recursion available
+    /* leave most values intact for response */
+    msg->qr = 1; /* this is a response */
+    msg->aa = 1; /* this server is authoritative */
+    msg->ra = 0; /* no recursion available */
     msg->rcode = Ok_ResponseType;
 
-    // should already be 0
+    /* should already be 0 */
     msg->anCount = 0;
     msg->nsCount = 0;
     msg->arCount = 0;
 
-    // for every question append resource records
+    /* for every question append resource records */
     q = msg->questions;
     while (q) {
         rr = calloc(1, sizeof(struct ResourceRecord));
@@ -500,14 +516,13 @@ void resolve_query(struct Message *msg) {
         rr->name = strdup(q->qName);
         rr->type = q->qType;
         rr->class = q->qClass;
-        rr->ttl = 60 * 60; // in seconds; 0 means no caching
+        rr->ttl = 60 * 60; /* in seconds; 0 means no caching */
 
         printf("Query for '%s'\n", q->qName);
 
-        // We only can only answer two question types so far
-        // and the answer (resource records) will be all put
-        // into the answers list.
-        // This behavior is probably non-standard!
+        /* We can only answer a few question types so far
+         * and the answer (resource records) will all be put
+         * into the answers list. */
         switch (q->qType) {
         case A_Resource_RecordType:
             rr->rd_length = 4;
@@ -535,14 +550,6 @@ void resolve_query(struct Message *msg) {
             rr->rd_length = txt_data_len + 1;
             rr->rd_data.txt_record.txt_data_len = txt_data_len;
             break;
-        /*
-        case NS_Resource_RecordType:
-        case CNAME_Resource_RecordType:
-        case SOA_Resource_RecordType:
-        case PTR_Resource_RecordType:
-        case MX_Resource_RecordType:
-        case TXT_Resource_RecordType:
-        */
         default:
             free(rr->name);
             free(rr);
@@ -553,15 +560,15 @@ void resolve_query(struct Message *msg) {
 
         msg->anCount++;
 
-        // prepend resource record to answers list
+        /* prepend resource record to answers list */
         beg = msg->answers;
         msg->answers = rr;
         rr->next = beg;
 
-    // jump here to omit question
+    /* jump here to omit question */
     next:
 
-        // process next question
+        /* process next question */
         q = q->next;
     }
 }
@@ -571,7 +578,7 @@ bool encode_resource_records(struct ResourceRecord *rr, uint8_t **buffer) {
     int i;
 
     while (rr) {
-        // Answer questions by attaching resource sections.
+        /* Answer questions by attaching resource sections. */
         encode_domain_name(buffer, rr->name);
         put16bits(buffer, rr->type);
         put16bits(buffer, rr->class);
@@ -654,7 +661,7 @@ void free_questions(struct Question *qq) {
 }
 
 int main() {
-    // buffer for input/output binary packet
+    /* buffer for input/output binary packet */
     uint8_t buffer[BUFFER_SIZE];
     struct sockaddr_in client_addr;
     socklen_t addr_len = sizeof(struct sockaddr_in);
@@ -667,11 +674,22 @@ int main() {
     struct Message msg;
     memset(&msg, 0, sizeof(struct Message));
 
+    /*
+     * Configure listening parameters:
+     * - Address family: AF_INET (IPv4)
+     * - Address: INADDR_ANY (Accept connections from any interface)
+     * - Port: 9000 (Converted to network byte order using htons)
+     */
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(port);
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
 
+    /*
+     * Set the server to listen using the configured parameters:
+     * - socket() creates a UDP socket (SOCK_DGRAM).
+     * - bind() associates the socket with the specified port and address.
+     */
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
     rc = bind(sock, (struct sockaddr *)&addr, addr_len);
 
     if (rc != 0) {
@@ -688,8 +706,12 @@ int main() {
         free_resource_records(msg.additionals);
         memset(&msg, 0, sizeof(struct Message));
 
-        /* Receive DNS query */
-
+        /*
+         * Receive incoming queries:
+         * - recvfrom() reads incoming datagrams and populates the buffer.
+         * - It also stores the sender's address in client_addr.
+         * - The number of bytes received is stored in nbytes.
+         */
         nbytes = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr, &addr_len);
 
         /* failed to read query */
@@ -710,10 +732,16 @@ int main() {
         uint8_t *p = buffer;
         if (!encode_msg(&msg, &p)) continue;
 
-        /* Send DNS response */
         size_t buflen = p - buffer;
 
+        /*
+         * Send DNS response:
+         * - sendto() sends the encoded binary buffer back to the client.
+         * - The destination address is the one previously captured by recvfrom().
+         */
         sendto(sock, buffer, buflen, 0, (struct sockaddr *)&client_addr, addr_len);
-
     }
+    
+    /* End of program */
+    return 0;
 }
